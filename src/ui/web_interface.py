@@ -15,7 +15,22 @@ def initialize_game_interface(model_path: str = None, enable_learning: bool = Tr
     global game_interface
     
     if model_path and os.path.exists(model_path):
-        model = ChessNet.load_model(model_path)
+        # Try to load with architecture detection
+        try:
+            import torch
+            checkpoint = torch.load(model_path, map_location=Config.DEVICE, weights_only=False)
+            config = checkpoint.get('config', {})
+            
+            # Check if it's an optimized model
+            if config.get('optimized', False) or config.get('architecture_version', '1.0') != '1.0':
+                from src.neural_network.optimized_chess_net import OptimizedChessNet
+                model = OptimizedChessNet.load_model(model_path)
+            else:
+                model = ChessNet.load_model(model_path)
+        except Exception as e:
+            print(f"⚠️  Failed to load model from {model_path}: {e}")
+            print("🆕 Creating new model instead")
+            model = ChessNet()
     else:
         model = ChessNet()
     

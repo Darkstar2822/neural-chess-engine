@@ -1,0 +1,21 @@
+{
+  "name": "chess-engine-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for Neural Chess Engine web interface",
+  "scripts": {
+    "test": "jest",
+    "test:verbose": "jest --verbose",
+    "test:debug": "jest --detectOpenHandles --forceExit"
+  },
+  "dependencies": {
+    "puppeteer": "^21.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 30000,
+    "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"]
+  }
+}

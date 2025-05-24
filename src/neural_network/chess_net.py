@@ -80,7 +80,7 @@ class ChessNet(nn.Module):
         finally:
             cleanup()
     
-    @safe_execute
+    @safe_execute(default_return=(None, None))
     def predict(self, state_tensor):
         self.eval()
         cleanup = memory_manager.monitor_memory("chess_net_predict")

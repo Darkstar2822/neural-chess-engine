@@ -19,7 +19,17 @@ class NeuralPlayer:
             return None
         
         state_tensor = game.get_state_planes().permute(2, 0, 1).unsqueeze(0)
-        policy_probs, value = self.model.predict(state_tensor)
+        
+        try:
+            policy_probs, value = self.model.predict(state_tensor)
+            
+            # Handle case where predict returns None due to error
+            if policy_probs is None or value is None:
+                return np.random.choice(legal_moves)
+                
+        except Exception as e:
+            print(f"Error in model prediction: {e}")
+            return np.random.choice(legal_moves)
         
         legal_mask = game.get_move_probabilities_mask().numpy()
         masked_probs = policy_probs * legal_mask
