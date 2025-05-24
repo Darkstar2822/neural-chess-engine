@@ -57,13 +57,23 @@ class OptimizedTrainingPipeline:
             # Try to load latest optimized model
             latest_model = self._find_latest_model('data/models/optimized')
             if latest_model:
-                print(f"📁 Loading optimized model: {latest_model}")
-                self.model = OptimizedChessNet.load_model(latest_model)
-                self.trainer = ChessNetTrainer(self.model)
+                try:
+                    print(f"📁 Loading optimized model: {latest_model}")
+                    self.model = OptimizedChessNet.load_model(latest_model)
+                    self.trainer = ChessNetTrainer(self.model)
+                except Exception as e:
+                    print(f"⚠️  Failed to load optimized model: {e}")
+                    print("🆕 Creating new optimized model instead")
+                    self.model = OptimizedChessNet(
+                        input_planes=16,
+                        filters=256,
+                        residual_blocks=10
+                    ).to(self.device)
+                    self.trainer = ChessNetTrainer(self.model)
             else:
                 print("🆕 Creating new optimized model")
                 self.model = OptimizedChessNet(
-                    input_planes=12,
+                    input_planes=16,
                     filters=256,
                     residual_blocks=10
                 ).to(self.device)

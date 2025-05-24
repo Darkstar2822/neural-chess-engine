@@ -16,8 +16,21 @@ from config import Config
 @safe_execute(default_return=([], [], []))
 def play_single_game(model_path: str, game_id: int, use_exploration: bool = True) -> Tuple[List[np.ndarray], List[np.ndarray], List[float]]:
     """Play a single self-play game in a separate process"""
-    # Load model in worker process
-    model = ChessNet.load_model(model_path)
+    # Load model in worker process - try optimized first, then fallback to standard
+    try:
+        from src.neural_network.optimized_chess_net import OptimizedChessNet
+        checkpoint = torch.load(model_path, map_location=Config.DEVICE, weights_only=False)
+        config = checkpoint['config']
+        
+        # Check if it's an optimized model
+        if config.get('optimized', False) or config.get('architecture_version', '1.0') != '1.0':
+            model = OptimizedChessNet.load_model(model_path)
+        else:
+            model = ChessNet.load_model(model_path)
+    except Exception:
+        # Fallback to standard ChessNet
+        model = ChessNet.load_model(model_path)
+    
     model.eval()
     
     trainer = DirectNeuralTraining(model)
@@ -35,7 +48,7 @@ def play_single_game(model_path: str, game_id: int, use_exploration: bool = True
     return states, policies, values
 
 class ParallelSelfPlay:
-    def __init__(self, model: ChessNet, num_workers: int = None):
+    def __init__(self, model, num_workers: int = None):
         self.model = model
         self.num_workers = num_workers or min(mp.cpu_count(), 8)  # Don't overwhelm system
         
@@ -97,7 +110,7 @@ class ParallelSelfPlay:
             cleanup()
 
 class FastTrainingManager:
-    def __init__(self, model: ChessNet):
+    def __init__(self, model):
         self.model = model
         self.parallel_selfplay = ParallelSelfPlay(model)
         self.training_data = {
