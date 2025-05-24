@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from config import Config
-from src.neural_network.optimized_chess_net import OptimizedChessNet, OptimizedTrainer
+from src.neural_network.optimized_chess_net import OptimizedChessNet
 from src.neural_network.trainer import ChessNetTrainer
 from src.training.parallel_selfplay import FastTrainingManager
 from src.utils.memory_manager import memory_manager
@@ -59,15 +59,15 @@ class OptimizedTrainingPipeline:
             if latest_model:
                 print(f"📁 Loading optimized model: {latest_model}")
                 self.model = OptimizedChessNet.load_model(latest_model)
-                self.trainer = OptimizedTrainer(self.model, self.device)
+                self.trainer = ChessNetTrainer(self.model)
             else:
                 print("🆕 Creating new optimized model")
                 self.model = OptimizedChessNet(
-                    input_channels=12,
-                    hidden_size=256,
-                    num_blocks=10
+                    input_planes=12,
+                    filters=256,
+                    residual_blocks=10
                 ).to(self.device)
-                self.trainer = OptimizedTrainer(self.model, self.device)
+                self.trainer = ChessNetTrainer(self.model)
         else:
             # Fallback to standard model with optimizations
             from src.neural_network.chess_net import ChessNet
@@ -131,16 +131,10 @@ class OptimizedTrainingPipeline:
             
             # 2. Train the model
             print("🧠 Training neural network...")
-            if self.use_optimized:
-                # Use optimized trainer
-                batch_data = self._prepare_optimized_batch(training_data)
-                training_stats = self.trainer.train_batch(batch_data)
-                print(f"   Training stats: {training_stats}")
-            else:
-                # Use standard trainer
-                training_history = self.trainer.train(training_data, epochs_per_iteration)
-                final_losses = training_history[-1] if training_history else {}
-                print(f"   Final losses: {final_losses}")
+            # Use standard trainer for both cases for now
+            training_history = self.trainer.train(training_data, epochs_per_iteration)
+            final_losses = training_history[-1] if training_history else {}
+            print(f"   Final losses: {final_losses}")
             
             # 3. Save the model
             self._save_model()

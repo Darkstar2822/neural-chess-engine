@@ -13,7 +13,7 @@ from src.utils.error_handler import safe_execute, handle_errors
 from src.utils.memory_manager import memory_manager
 from config import Config
 
-@safe_execute(return_value=([], [], []))
+@safe_execute(default_return=([], [], []))
 def play_single_game(model_path: str, game_id: int, use_exploration: bool = True) -> Tuple[List[np.ndarray], List[np.ndarray], List[float]]:
     """Play a single self-play game in a separate process"""
     # Load model in worker process

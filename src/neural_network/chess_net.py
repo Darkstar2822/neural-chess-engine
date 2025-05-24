@@ -113,7 +113,7 @@ class ChessNet(nn.Module):
     
     @classmethod
     def load_model(cls, filepath):
-        checkpoint = torch.load(filepath, map_location=Config.DEVICE)
+        checkpoint = torch.load(filepath, map_location=Config.DEVICE, weights_only=False)
         config = checkpoint['config']
         
         model = cls(

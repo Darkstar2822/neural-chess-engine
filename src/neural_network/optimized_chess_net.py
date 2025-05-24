@@ -160,7 +160,7 @@ class OptimizedChessNet(nn.Module):
             },
             'version_info': {
                 'pytorch_version': torch.__version__,
-                'creation_date': torch.tensor(0).new_empty(0).storage().data_ptr()  # Unique ID
+                'creation_date': hash(str(torch.random.get_rng_state()))  # Unique ID
             }
         }, filepath)
         
@@ -181,7 +181,7 @@ class OptimizedChessNet(nn.Module):
         """Load model with compatibility checking"""
         from src.utils.model_versioning import model_version_manager
         
-        checkpoint = torch.load(filepath, map_location=Config.DEVICE)
+        checkpoint = torch.load(filepath, map_location=Config.DEVICE, weights_only=False)
         config = checkpoint['config']
         
         # Check compatibility
