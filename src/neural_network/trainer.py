@@ -6,6 +6,8 @@ import numpy as np
 from tqdm import tqdm
 from config import Config
 from src.neural_network.chess_net import ChessNet
+from src.utils.memory_manager import memory_manager
+from src.utils.error_handler import safe_execute, handle_errors
 
 class ChessNetTrainer:
     def __init__(self, model: ChessNet, learning_rate=Config.TRAINING_LEARNING_RATE):
@@ -13,40 +15,76 @@ class ChessNetTrainer:
         self.device = Config.DEVICE
         self.model.to(self.device)
         
-        self.optimizer = optim.Adam(
+        # Use AdamW for better weight decay
+        self.optimizer = optim.AdamW(
             model.parameters(), 
             lr=learning_rate, 
-            weight_decay=Config.TRAINING_WEIGHT_DECAY
+            weight_decay=Config.TRAINING_WEIGHT_DECAY,
+            betas=(0.9, 0.999)
+        )
+        
+        # Add learning rate scheduler
+        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=1000, eta_min=1e-6
         )
         
         self.policy_loss_fn = nn.KLDivLoss(reduction='batchmean')
         self.value_loss_fn = nn.MSELoss()
         
+        # Mixed precision training
+        self.use_amp = Config.DEVICE == 'cuda'
+        if self.use_amp:
+            self.scaler = torch.cuda.amp.GradScaler()
+        
+    @handle_errors
     def train_batch(self, states, target_policies, target_values):
         self.model.train()
+        cleanup = memory_manager.monitor_memory("train_batch")
         
-        states = states.to(self.device)
-        target_policies = target_policies.to(self.device)
-        target_values = target_values.to(self.device)
-        
-        self.optimizer.zero_grad()
-        
-        pred_policies, pred_values = self.model(states)
-        
-        policy_loss = self.policy_loss_fn(pred_policies, target_policies)
-        value_loss = self.value_loss_fn(pred_values.squeeze(), target_values)
-        
-        total_loss = policy_loss + value_loss
-        
-        total_loss.backward()
-        self.optimizer.step()
-        
-        return {
-            'total_loss': total_loss.item(),
-            'policy_loss': policy_loss.item(),
-            'value_loss': value_loss.item()
-        }
+        try:
+            states = memory_manager.optimize_tensor(states.to(self.device))
+            target_policies = target_policies.to(self.device)
+            target_values = target_values.to(self.device)
+            
+            self.optimizer.zero_grad()
+            
+            if self.use_amp:
+                with torch.cuda.amp.autocast():
+                    pred_policies, pred_values = self.model(states)
+                    policy_loss = self.policy_loss_fn(pred_policies, target_policies)
+                    value_loss = self.value_loss_fn(pred_values.squeeze(), target_values)
+                    total_loss = policy_loss + value_loss
+                
+                self.scaler.scale(total_loss).backward()
+                
+                # Gradient clipping
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                pred_policies, pred_values = self.model(states)
+                policy_loss = self.policy_loss_fn(pred_policies, target_policies)
+                value_loss = self.value_loss_fn(pred_values.squeeze(), target_values)
+                total_loss = policy_loss + value_loss
+                
+                total_loss.backward()
+                
+                # Gradient clipping
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                
+                self.optimizer.step()
+            
+            return {
+                'total_loss': total_loss.item(),
+                'policy_loss': policy_loss.item(),
+                'value_loss': value_loss.item()
+            }
+        finally:
+            cleanup()
     
+    @handle_errors
     def train_epoch(self, dataloader):
         self.model.train()
         total_losses = {'total_loss': 0, 'policy_loss': 0, 'value_loss': 0}
@@ -55,11 +93,22 @@ class ChessNetTrainer:
         for states, policies, values in tqdm(dataloader, desc="Training"):
             losses = self.train_batch(states, policies, values)
             
-            for key in total_losses:
-                total_losses[key] += losses[key]
+            if losses:  # Check if batch training was successful
+                for key in total_losses:
+                    total_losses[key] += losses[key]
+            
+            # Step learning rate scheduler
+            self.scheduler.step()
+            
+            # Periodic memory cleanup
+            if num_batches % 50 == 0:
+                memory_manager.force_cleanup()
         
         for key in total_losses:
             total_losses[key] /= num_batches
+        
+        # Add learning rate to losses
+        total_losses['learning_rate'] = self.scheduler.get_last_lr()[0]
             
         return total_losses
     

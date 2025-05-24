@@ -63,6 +63,9 @@
                     <button class="btn btn-secondary" onclick="location.reload()">
                         🔄 Reset Game
                     </button>
+                    <button class="btn btn-secondary" onclick="testDragDrop()">
+                        🔧 Test Drag & Drop
+                    </button>
                 </div>
                 
                 <div class="move-input-section">
@@ -84,6 +87,8 @@
                         <li>🖱️ <strong>Click & Click:</strong> Click piece, then destination</li>
                         <li>🖱️ <strong>Drag & Drop:</strong> Drag pieces to move them</li>
                         <li>⌨️ <strong>Type Moves:</strong> Use algebraic notation (e2e4)</li>
+                        <li>♟️ <strong>Special Moves:</strong> En passant, castling, promotion</li>
+                        <li>🎨 <strong>Visual Hints:</strong> Orange=en passant, Purple=castling</li>
                         <li>🧠 <strong>AI Learning:</strong> Engine adapts to your playing style</li>
                     </ul>
                 </div>
@@ -118,6 +123,24 @@
             }
         }
         
+        function testDragDrop() {
+            console.log('=== DRAG & DROP TEST ===');
+            console.log('Game state:', chessBoard.gameState);
+            
+            const pieces = document.querySelectorAll('.piece');
+            console.log(`Found ${pieces.length} pieces on board`);
+            
+            pieces.forEach((piece, index) => {
+                console.log(`Piece ${index}: ${piece.dataset.piece}, draggable: ${piece.draggable}, parent: ${piece.parentElement.id}`);
+            });
+            
+            const whitePawn = document.querySelector('[data-piece="P"]');
+            if (whitePawn) {
+                console.log('Testing white pawn:', whitePawn);
+                console.log('Can move:', chessBoard.canMovePiece(whitePawn));
+            }
+        }
+
         function makeManualMove() {
             const move = document.getElementById('manualMoveInput').value.trim();
             if (!move) {
@@ -143,8 +166,11 @@
             document.getElementById('manualMoveInput').value = '';
         }
         
-        // Welcome message
+        // Welcome message and test
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('Chess engine loaded successfully!');
+            console.log('ChessBoard object:', chessBoard);
+            
             setTimeout(() => {
                 chessBoard.showMessage('Welcome! Start a new game to play against the neural chess engine. Drag & drop pieces or click to move!', 'info');
             }, 1000);

@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from config import Config
+from src.utils.memory_manager import memory_manager
+from src.utils.error_handler import safe_execute, handle_errors
 
 class ResidualBlock(nn.Module):
     def __init__(self, filters):
@@ -46,45 +48,58 @@ class ChessNet(nn.Module):
         self.value_fc1 = nn.Linear(8 * 8, 256)
         self.value_fc2 = nn.Linear(256, 1)
         
+    @handle_errors
     def forward(self, x):
-        x = self.input_conv(x)
-        x = self.input_bn(x)
-        x = F.relu(x)
+        cleanup = memory_manager.monitor_memory("chess_net_forward")
         
-        for block in self.residual_blocks:
-            x = block(x)
-        
-        policy = self.policy_conv(x)
-        policy = self.policy_bn(policy)
-        policy = F.relu(policy)
-        policy = policy.view(policy.size(0), -1)
-        policy = self.policy_fc(policy)
-        policy = F.log_softmax(policy, dim=1)
-        
-        value = self.value_conv(x)
-        value = self.value_bn(value)
-        value = F.relu(value)
-        value = value.view(value.size(0), -1)
-        value = self.value_fc1(value)
-        value = F.relu(value)
-        value = self.value_fc2(value)
-        value = torch.tanh(value)
-        
-        return policy, value
+        try:
+            x = self.input_conv(x)
+            x = self.input_bn(x)
+            x = F.relu(x)
+            
+            for block in self.residual_blocks:
+                x = block(x)
+            
+            policy = self.policy_conv(x)
+            policy = self.policy_bn(policy)
+            policy = F.relu(policy)
+            policy = policy.view(policy.size(0), -1)
+            policy = self.policy_fc(policy)
+            policy = F.log_softmax(policy, dim=1)
+            
+            value = self.value_conv(x)
+            value = self.value_bn(value)
+            value = F.relu(value)
+            value = value.view(value.size(0), -1)
+            value = self.value_fc1(value)
+            value = F.relu(value)
+            value = self.value_fc2(value)
+            value = torch.tanh(value)
+            
+            return policy, value
+        finally:
+            cleanup()
     
+    @safe_execute
     def predict(self, state_tensor):
         self.eval()
-        with torch.no_grad():
-            if len(state_tensor.shape) == 3:
-                state_tensor = state_tensor.unsqueeze(0)
-            
-            # Move tensor to same device as model
-            state_tensor = state_tensor.to(next(self.parameters()).device)
-            
-            policy, value = self.forward(state_tensor)
-            policy = torch.exp(policy)
-            
-            return policy.squeeze().cpu().numpy(), value.squeeze().cpu().item()
+        cleanup = memory_manager.monitor_memory("chess_net_predict")
+        
+        try:
+            with torch.no_grad():
+                if len(state_tensor.shape) == 3:
+                    state_tensor = state_tensor.unsqueeze(0)
+                
+                # Move tensor to same device as model and optimize
+                state_tensor = state_tensor.to(next(self.parameters()).device)
+                state_tensor = memory_manager.optimize_tensor(state_tensor)
+                
+                policy, value = self.forward(state_tensor)
+                policy = torch.exp(policy)
+                
+                return policy.squeeze().cpu().numpy(), value.squeeze().cpu().item()
+        finally:
+            cleanup()
     
     def save_model(self, filepath):
         torch.save({

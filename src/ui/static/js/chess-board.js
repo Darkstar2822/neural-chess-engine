@@ -5,14 +5,21 @@ class ChessBoard {
         this.gameState = {
             fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             humanColor: 'white',
-            gameActive: false,
+            gameActive: true,  // Start active so pieces can be moved
             currentTurn: 'white'
         };
         this.draggedPiece = null;
         this.draggedFrom = null;
         
+        // Bind event handlers to maintain 'this' context
+        this.boundDragStart = this.handleDragStart.bind(this);
+        this.boundDragEnd = this.handleDragEnd.bind(this);
+        
         this.initializeBoard();
         this.setupEventListeners();
+        
+        // Attach drag events after board is created
+        setTimeout(() => this.attachDragEvents(), 100);
     }
 
     initializeBoard() {
@@ -43,6 +50,7 @@ class ChessBoard {
                 square.addEventListener('click', (e) => this.handleSquareClick(e));
                 square.addEventListener('dragover', (e) => this.handleDragOver(e));
                 square.addEventListener('drop', (e) => this.handleDrop(e));
+                square.addEventListener('dragenter', (e) => e.preventDefault());
                 
                 boardElement.appendChild(square);
             }
@@ -52,8 +60,8 @@ class ChessBoard {
     }
 
     setupEventListeners() {
-        document.addEventListener('dragstart', (e) => this.handleDragStart(e));
-        document.addEventListener('dragend', (e) => this.handleDragEnd(e));
+        // Event listeners are now attached directly to pieces when created
+        // This prevents conflicts and ensures proper event handling
     }
 
     updateBoardFromFEN(fen) {
@@ -80,6 +88,25 @@ class ChessBoard {
                     fileIndex += parseInt(char);
                 }
             }
+        });
+        
+        // Re-attach drag events after updating board
+        this.attachDragEvents();
+    }
+    
+    attachDragEvents() {
+        console.log('Attaching drag events to all pieces...');
+        const pieces = document.querySelectorAll('.piece');
+        pieces.forEach((piece, index) => {
+            // Remove existing listeners first
+            piece.removeEventListener('dragstart', this.boundDragStart);
+            piece.removeEventListener('dragend', this.boundDragEnd);
+            
+            // Add new listeners
+            piece.addEventListener('dragstart', this.boundDragStart);
+            piece.addEventListener('dragend', this.boundDragEnd);
+            
+            console.log(`Attached drag events to piece ${index}: ${piece.dataset.piece}`);
         });
     }
 
@@ -141,12 +168,20 @@ class ChessBoard {
     }
 
     handleDragStart(e) {
-        if (!e.target.classList.contains('piece')) return;
+        console.log('Drag start triggered', e.target);
+        
+        if (!e.target.classList.contains('piece')) {
+            console.log('Not a piece element');
+            return;
+        }
         
         const piece = e.target;
         const square = piece.parentElement;
         
+        console.log(`Attempting to drag ${piece.dataset.piece} from ${square.id}`);
+        
         if (!this.canMovePiece(piece)) {
+            console.log('Cannot move this piece');
             e.preventDefault();
             return;
         }
@@ -155,25 +190,36 @@ class ChessBoard {
         this.draggedFrom = square.id;
         piece.classList.add('dragging');
         
+        console.log(`Drag started: ${this.draggedFrom}`);
+        
         // Show legal moves
         this.showLegalMoves(square.id);
         
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', '');
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', '');
+        }
     }
 
     handleDragOver(e) {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
     }
 
     handleDrop(e) {
         e.preventDefault();
         
-        if (!this.draggedPiece || !this.draggedFrom) return;
+        if (!this.draggedPiece || !this.draggedFrom) {
+            this.clearDragState();
+            return;
+        }
         
         const targetSquare = e.currentTarget;
         const targetSquareId = targetSquare.id;
+        
+        console.log(`Drag drop: ${this.draggedFrom} -> ${targetSquareId}`); // Debug log
         
         if (this.draggedFrom !== targetSquareId) {
             this.attemptMove(this.draggedFrom, targetSquareId);
@@ -203,6 +249,8 @@ class ChessBoard {
         const isHumanPiece = (this.gameState.humanColor === 'white' && isWhitePiece) ||
                            (this.gameState.humanColor === 'black' && !isWhitePiece);
         
+        console.log(`Can move piece: ${piece.dataset.piece}, gameActive: ${this.gameState.gameActive}, humanTurn: ${isHumanTurn}, humanPiece: ${isHumanPiece}`);
+        
         return isHumanTurn && isHumanPiece;
     }
 
@@ -222,8 +270,6 @@ class ChessBoard {
     }
 
     showLegalMoves(fromSquare) {
-        // This will be populated with actual legal moves from the backend
-        // For now, showing placeholder behavior
         this.clearHighlights();
         
         // Fetch legal moves from backend
@@ -237,7 +283,18 @@ class ChessBoard {
                             const targetSquare = document.getElementById(toSquare);
                             if (targetSquare) {
                                 const hasPiece = targetSquare.querySelector('.piece');
-                                targetSquare.classList.add(hasPiece ? 'legal-capture' : 'legal-move');
+                                const isEnPassant = this.isEnPassantMove(fromSquare, toSquare);
+                                const isCastling = this.isCastlingMove(fromSquare, toSquare);
+                                
+                                if (isEnPassant) {
+                                    targetSquare.classList.add('legal-en-passant');
+                                } else if (isCastling) {
+                                    targetSquare.classList.add('legal-castling');
+                                } else if (hasPiece) {
+                                    targetSquare.classList.add('legal-capture');
+                                } else {
+                                    targetSquare.classList.add('legal-move');
+                                }
                             }
                         }
                     });
@@ -247,8 +304,8 @@ class ChessBoard {
     }
 
     clearHighlights() {
-        document.querySelectorAll('.legal-move, .legal-capture').forEach(square => {
-            square.classList.remove('legal-move', 'legal-capture');
+        document.querySelectorAll('.legal-move, .legal-capture, .legal-en-passant, .legal-castling').forEach(square => {
+            square.classList.remove('legal-move', 'legal-capture', 'legal-en-passant', 'legal-castling');
         });
     }
 
@@ -272,8 +329,46 @@ class ChessBoard {
         
         const isPawn = piece.dataset.piece.toLowerCase() === 'p';
         const toRank = parseInt(to[1]);
+        const fromRank = parseInt(from[1]);
         
-        return isPawn && (toRank === 8 || toRank === 1);
+        // White pawn reaching rank 8, or black pawn reaching rank 1
+        const isWhitePawn = piece.dataset.piece === 'P';
+        const isBlackPawn = piece.dataset.piece === 'p';
+        
+        return isPawn && ((isWhitePawn && fromRank === 7 && toRank === 8) || 
+                         (isBlackPawn && fromRank === 2 && toRank === 1));
+    }
+
+    isEnPassantMove(from, to) {
+        const fromSquare = document.getElementById(from);
+        const toSquare = document.getElementById(to);
+        const piece = fromSquare?.querySelector('.piece');
+        
+        if (!piece || piece.dataset.piece.toLowerCase() !== 'p') return false;
+        
+        const fromFile = from.charCodeAt(0);
+        const toFile = to.charCodeAt(0);
+        const fromRank = parseInt(from[1]);
+        const toRank = parseInt(to[1]);
+        
+        // Pawn moving diagonally to empty square (en passant condition)
+        const isDiagonal = Math.abs(fromFile - toFile) === 1 && Math.abs(fromRank - toRank) === 1;
+        const isEmptyTarget = !toSquare?.querySelector('.piece');
+        
+        return isDiagonal && isEmptyTarget;
+    }
+
+    isCastlingMove(from, to) {
+        const fromSquare = document.getElementById(from);
+        const piece = fromSquare?.querySelector('.piece');
+        
+        if (!piece || piece.dataset.piece.toLowerCase() !== 'k') return false;
+        
+        const fromFile = from.charCodeAt(0);
+        const toFile = to.charCodeAt(0);
+        
+        // King moving 2 squares horizontally
+        return Math.abs(fromFile - toFile) === 2;
     }
 
     showPromotionDialog(from, to) {
@@ -312,6 +407,10 @@ class ChessBoard {
     }
 
     makeMove(move) {
+        // Check special moves before making them
+        const isEnPassant = move.length === 4 && this.isEnPassantMove(move.substring(0, 2), move.substring(2, 4));
+        const isCastling = move.length === 4 && this.isCastlingMove(move.substring(0, 2), move.substring(2, 4));
+        
         fetch('/api/make_move', {
             method: 'POST',
             headers: {
@@ -326,7 +425,14 @@ class ChessBoard {
                 this.updateBoardFromFEN(data.board_fen);
                 this.updateGameStatus();
                 
-                this.showMessage(`Your move: ${move}`, 'success');
+                let moveMessage = `Your move: ${move}`;
+                if (isEnPassant) {
+                    moveMessage += ' (en passant)';
+                } else if (isCastling) {
+                    const isKingside = move.substring(2, 4) === 'g1' || move.substring(2, 4) === 'g8';
+                    moveMessage += isKingside ? ' (kingside castling)' : ' (queenside castling)';
+                }
+                this.showMessage(moveMessage, 'success');
                 
                 if (data.is_game_over) {
                     let gameOverMsg = `Game Over: ${data.game_result}`;

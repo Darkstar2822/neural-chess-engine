@@ -99,6 +99,8 @@ def main():
     train_parser.add_argument('--games', type=int, default=50, help='Games per iteration')
     train_parser.add_argument('--parallel', action='store_true', help='Use parallel training for faster speed')
     train_parser.add_argument('--workers', type=int, help='Number of parallel workers (default: auto-detect)')
+    train_parser.add_argument('--optimized', action='store_true', help='Use optimized training pipeline')
+    train_parser.add_argument('--standard', action='store_true', help='Force standard training (override optimized)')
     
     play_parser = subparsers.add_parser('play', help='Play against the engine in console')
     play_parser.add_argument('--model', type=str, help='Path to trained model')
@@ -115,7 +117,18 @@ def main():
     args = parser.parse_args()
     
     if args.command == 'train':
-        train_engine(args.iterations, args.games, args.parallel, args.workers)
+        if args.optimized and not args.standard:
+            # Use optimized training pipeline
+            print("🚀 Using optimized training pipeline")
+            from optimized_training import OptimizedTrainingPipeline
+            pipeline = OptimizedTrainingPipeline(use_optimized_model=True)
+            pipeline.run_training(
+                max_generations=args.iterations,
+                games_per_generation=args.games
+            )
+        else:
+            # Use standard training
+            train_engine(args.iterations, args.games, args.parallel, args.workers)
     
     elif args.command == 'play':
         play_against_engine(args.model, args.learn)
