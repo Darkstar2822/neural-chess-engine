@@ -1,6 +1,13 @@
 // Chess Board JavaScript with Drag & Drop
 class ChessBoard {
     constructor() {
+        // Audio support
+        this.sounds = {
+            move: new Audio('/static/sounds/move.mp3'),
+            capture: new Audio('/static/sounds/capture.mp3'),
+            check: new Audio('/static/sounds/check.mp3'),
+            gameOver: new Audio('/static/sounds/game_over.mp3')
+        };
         this.selectedSquare = null;
         this.gameState = {
             fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
@@ -10,6 +17,7 @@ class ChessBoard {
         };
         this.draggedPiece = null;
         this.draggedFrom = null;
+        this.lastMove = null; // Track the last move
         
         // Bind event handlers to maintain 'this' context
         this.boundDragStart = this.handleDragStart.bind(this);
@@ -25,14 +33,29 @@ class ChessBoard {
     initializeBoard() {
         const boardElement = document.getElementById('chess-board');
         boardElement.innerHTML = '';
-        
-        for (let rank = 8; rank >= 1; rank--) {
-            for (let file = 1; file <= 8; file++) {
+
+        // Determine ranks and files order based on humanColor
+        const ranks = this.gameState.humanColor === 'black'
+            ? [...Array(8).keys()]
+            : [...Array(8).keys()].reverse();
+        const files = this.gameState.humanColor === 'black'
+            ? [...Array(8).keys()].reverse()
+            : [...Array(8).keys()];
+
+        for (let rankIndex of ranks) {
+            for (let fileIndex of files) {
+                // Consistent square ID logic with updateBoardFromFEN
+                const actualRank = this.gameState.humanColor === 'black'
+                    ? rankIndex + 1
+                    : 8 - rankIndex;
+                const file = fileIndex + 1;
+                const squareId = String.fromCharCode(96 + file) + actualRank;
                 const square = document.createElement('div');
-                const squareId = String.fromCharCode(96 + file) + rank;
                 square.id = squareId;
+                // Compute file and rank for coloring and coordinates
+                const rank = actualRank;
                 square.className = `square ${(rank + file) % 2 === 0 ? 'dark' : 'light'}`;
-                
+
                 // Add coordinates
                 if (file === 8) {
                     const rankCoord = document.createElement('div');
@@ -46,16 +69,16 @@ class ChessBoard {
                     fileCoord.textContent = String.fromCharCode(96 + file);
                     square.appendChild(fileCoord);
                 }
-                
+
                 square.addEventListener('click', (e) => this.handleSquareClick(e));
                 square.addEventListener('dragover', (e) => this.handleDragOver(e));
                 square.addEventListener('drop', (e) => this.handleDrop(e));
                 square.addEventListener('dragenter', (e) => e.preventDefault());
-                
+
                 boardElement.appendChild(square);
             }
         }
-        
+
         this.updateBoardFromFEN(this.gameState.fen);
     }
 
@@ -67,20 +90,33 @@ class ChessBoard {
     updateBoardFromFEN(fen) {
         const [position] = fen.split(' ');
         const ranks = position.split('/');
-        
+        const renderRanks = this.gameState.humanColor === 'black'
+            ? [...ranks]
+            : [...ranks].reverse();
+
         // Clear all pieces
         document.querySelectorAll('.piece').forEach(piece => piece.remove());
-        
-        ranks.forEach((rank, rankIndex) => {
+
+        // Remove check highlight from all squares
+        document.querySelectorAll('.square.highlight-check').forEach(sq => sq.classList.remove('highlight-check'));
+
+        renderRanks.forEach((rank, rankIndex) => {
             let fileIndex = 0;
             for (let char of rank) {
                 if (isNaN(char)) {
-                    const squareId = String.fromCharCode(97 + fileIndex) + (8 - rankIndex);
+                    // For black: rank 0 = rank 8, rank 1 = rank 7, etc.
+                    // For white: rank 0 = rank 1, rank 1 = rank 2, etc. (after reversing)
+                    const actualRank = this.gameState.humanColor === 'black'
+                        ? 8 - rankIndex
+                        : rankIndex + 1;
+                    const squareId = String.fromCharCode(97 + fileIndex) + actualRank;
                     const square = document.getElementById(squareId);
                     if (square) {
                         const piece = this.createPieceElement(char);
                         if (piece) {
+                            piece.classList.add('fade-in');
                             square.appendChild(piece);
+                            
                         }
                     }
                     fileIndex++;
@@ -89,7 +125,29 @@ class ChessBoard {
                 }
             }
         });
-        
+
+        // Highlight the last move squares, if any
+        if (this.lastMove) {
+            const from = this.lastMove.substring(0, 2);
+            const to = this.lastMove.substring(2, 4);
+            const fromSquare = document.getElementById(from);
+            const toSquare = document.getElementById(to);
+            if (fromSquare) fromSquare.classList.add('highlighted');
+            if (toSquare) toSquare.classList.add('highlighted');
+        }
+
+        // Check for check or checkmate conditions
+        const boardState = this.gameState.fen;
+        if (boardState.includes('+')) {
+            this.sounds.check.play();
+            // Find the king in check and highlight its square
+            const kingSquare = [...document.querySelectorAll('.square')].find(sq => {
+                const piece = sq.querySelector('.piece');
+                return piece && piece.dataset.piece.toLowerCase() === 'k';
+            });
+            if (kingSquare) kingSquare.classList.add('highlight-check');
+        }
+
         // Re-attach drag events after updating board
         this.attachDragEvents();
     }
@@ -236,20 +294,29 @@ class ChessBoard {
         if (this.draggedPiece) {
             this.draggedPiece.classList.remove('dragging');
         }
+        // Snapback logic: return piece to origin if needed
+        if (this.draggedFrom && this.draggedPiece) {
+            const originSquare = document.getElementById(this.draggedFrom);
+            if (originSquare && !originSquare.contains(this.draggedPiece)) {
+                originSquare.appendChild(this.draggedPiece);
+            }
+        }
         this.draggedPiece = null;
         this.draggedFrom = null;
         this.clearHighlights();
     }
 
     canMovePiece(piece) {
-        if (!this.gameState.gameActive) return false;
+        if (!this.gameState.gameActive) {
+            console.log('Game not active');
+            return false;
+        }
         
         const isWhitePiece = piece.dataset.piece === piece.dataset.piece.toUpperCase();
         const isHumanTurn = this.gameState.currentTurn === this.gameState.humanColor;
         const isHumanPiece = (this.gameState.humanColor === 'white' && isWhitePiece) ||
                            (this.gameState.humanColor === 'black' && !isWhitePiece);
         
-        console.log(`Can move piece: ${piece.dataset.piece}, gameActive: ${this.gameState.gameActive}, humanTurn: ${isHumanTurn}, humanPiece: ${isHumanPiece}`);
         
         return isHumanTurn && isHumanPiece;
     }
@@ -304,8 +371,8 @@ class ChessBoard {
     }
 
     clearHighlights() {
-        document.querySelectorAll('.legal-move, .legal-capture, .legal-en-passant, .legal-castling').forEach(square => {
-            square.classList.remove('legal-move', 'legal-capture', 'legal-en-passant', 'legal-castling');
+        document.querySelectorAll('.legal-move, .legal-capture, .legal-en-passant, .legal-castling, .highlighted').forEach(square => {
+            square.classList.remove('legal-move', 'legal-capture', 'legal-en-passant', 'legal-castling', 'highlighted');
         });
     }
 
@@ -410,7 +477,7 @@ class ChessBoard {
         // Check special moves before making them
         const isEnPassant = move.length === 4 && this.isEnPassantMove(move.substring(0, 2), move.substring(2, 4));
         const isCastling = move.length === 4 && this.isCastlingMove(move.substring(0, 2), move.substring(2, 4));
-        
+
         fetch('/api/make_move', {
             method: 'POST',
             headers: {
@@ -420,9 +487,24 @@ class ChessBoard {
         })
         .then(response => response.json())
         .then(data => {
+            // Play game over sound if game is over at the start
+            if (data.is_game_over) {
+                this.sounds.gameOver.play();
+            }
             if (data.status === 'success') {
+                // Play move or capture sound (before updating FEN)
+                const isCapture = document.getElementById(move.substring(2, 4)).querySelector('.piece');
+                if (isCapture) {
+                    this.sounds.capture.play();
+                } else {
+                    this.sounds.move.play();
+                }
+                // Track the last move (player)
+                this.lastMove = move.substring(0, 4);
                 this.gameState.fen = data.board_fen;
                 this.updateBoardFromFEN(data.board_fen);
+                
+                // Update current turn after move
                 this.updateGameStatus();
                 
                 let moveMessage = `Your move: ${move}`;
@@ -444,11 +526,21 @@ class ChessBoard {
                 } else if (data.ai_move) {
                     // Animate AI move
                     setTimeout(() => {
+                        // Track the last move (AI)
+                        this.lastMove = data.ai_move?.substring(0, 4);
                         this.gameState.fen = data.board_fen;
                         this.updateBoardFromFEN(data.board_fen);
                         this.showMessage(`AI played: ${data.ai_move}`, 'info');
                         this.updateGameStatus();
-                        
+                        // Check detection after AI move
+                        if (data.board_fen.includes('k') && data.board_fen.includes('K')) {
+                            // Check for check symbol in FEN
+                            if (data.board_fen.includes('+')) {
+                                this.sounds.check.play();
+                            } else {
+                                this.sounds.move.play();
+                            }
+                        }
                         if (data.is_game_over) {
                             let gameOverMsg = `Game Over: ${data.game_result}`;
                             if (data.learning_message) {
@@ -465,6 +557,13 @@ class ChessBoard {
         })
         .catch(error => {
             this.showMessage('Error making move: ' + error.message, 'error');
+            // Snapback logic: return piece to origin if needed
+            if (this.draggedFrom && this.draggedPiece) {
+                const originSquare = document.getElementById(this.draggedFrom);
+                if (originSquare && !originSquare.contains(this.draggedPiece)) {
+                    originSquare.appendChild(this.draggedPiece);
+                }
+            }
         });
     }
 
@@ -517,19 +616,22 @@ class ChessBoard {
                 this.gameState.gameActive = true;
                 this.gameState.fen = data.board_fen;
                 this.gameState.currentTurn = 'white';
-                
-                this.updateBoardFromFEN(data.board_fen);
+
+                // Rebuild board with correct orientation and FEN - this flips the board automatically
+                this.initializeBoard();
                 this.updateGameStatus();
                 
-                document.getElementById('learningStatus').textContent = 
+                console.log(`Board flipped for ${color} player - human pieces now on bottom`);
+
+                document.getElementById('learningStatus').textContent =
                     data.learning_enabled ? '🧠 Enabled' : '❌ Disabled';
-                
+
                 this.showMessage(`New game started! You are playing as ${color}.`, 'success');
-                
+
                 if (data.ai_move) {
                     setTimeout(() => {
                         this.gameState.fen = data.board_fen;
-                        this.updateBoardFromFEN(data.board_fen);
+                        this.initializeBoard();
                         this.showMessage(`AI played: ${data.ai_move}`, 'info');
                         this.updateGameStatus();
                     }, 500);

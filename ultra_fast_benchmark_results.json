@@ -1,0 +1,24 @@
+{
+  "device": "mps",
+  "pytorch_version": "2.6.0.dev20241212",
+  "timestamp": 1748160992.713651,
+  "single_inference": {
+    "avg_time_ms": 3.431666612159461,
+    "throughput_fps": 291.403598606196
+  },
+  "model_info": {
+    "parameters": 4527473,
+    "size_mb": 17.270938873291016
+  },
+  "optimization_summary": {
+    "architecture": "UltraFastChessNet",
+    "optimizations": [
+      "MobileNet-style inverted bottlenecks",
+      "Squeeze-and-Excitation attention",
+      "Reduced parameter count",
+      "Optimized policy/value heads",
+      "Mixed precision training support",
+      "JIT compilation ready"
+    ]
+  }
+}

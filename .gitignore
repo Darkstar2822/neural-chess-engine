@@ -16,69 +16,51 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# PyTorch models and checkpoints
+# PyTorch
 *.pt
 *.pth
-*.pkl
-models/
-data/models/
+*.ckpt
+
+# Logs
+*.log
 logs/
-
-# Training data
-games/
-data/games/
-data/training/
-data/analysis/
-*.npz
-
-# Virtual environments
-venv/
-env/
-ENV/
-.venv/
-.env
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Jupyter Notebooks
-.ipynb_checkpoints
-
-# Flask
-instance/
-.webassets-cache
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Temporary files
 *.tmp
-*.log
-temp/
-tmp/
+*.temp
+web_server.pid
 
-# Keep directory structure but ignore contents
-models/.gitkeep
-games/.gitkeep
-logs/.gitkeep
-data/models/.gitkeep
-data/games/.gitkeep
-data/training/.gitkeep
-data/analysis/.gitkeep
+# Test artifacts
+test_screenshots/
+coverage/
+.pytest_cache/
+.coverage
+
+# Data files (keep structure but ignore large files)
+data/games/*.pgn
+data/training/*.h5
+evolution_data/
+ultra_fast_benchmark_results.json
+EOF < /dev/null

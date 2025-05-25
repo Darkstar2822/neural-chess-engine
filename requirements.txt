@@ -1,10 +1,108 @@
+# Core Dependencies
 torch>=2.0.0
 torchvision>=0.15.0
-python-chess>=1.999
 numpy>=1.24.0
-matplotlib>=3.6.0
-tqdm>=4.64.0
-tensorboard>=2.12.0
+scipy>=1.10.0
+
+# Chess Engine
+python-chess>=1.999
+
+# Neural Network & Evolution
+torch-geometric>=2.3.0  # Graph Neural Networks
+deap>=1.3.3            # Evolutionary algorithms
+pymoo>=0.6.0           # Multi-objective optimization
+neat-python>=0.92      # NEAT algorithm implementation
+
+# Web Interface
 flask>=2.2.0
 requests>=2.28.0
-scipy>=1.10.0
+
+# Data Analysis & Visualization  
+matplotlib>=3.6.0
+seaborn>=0.12.0
+pandas>=1.5.0
+plotly>=5.15.0         # Interactive plots
+bokeh>=3.0.0           # Advanced visualization
+
+# Progress & Monitoring
+tqdm>=4.64.0
+tensorboard>=2.12.0
+wandb>=0.15.0          # Experiment tracking
+psutil>=5.9.0          # System monitoring
+
+# Async & Performance
+asyncio-mqtt>=0.13.0   # Async operations
+aiofiles>=23.0.0       # Async file operations
+uvloop>=0.17.0         # Fast async event loop (Unix only)
+
+# Memory & Storage
+h5py>=3.8.0           # Efficient data storage
+zarr>=2.14.0          # Array storage
+lmdb>=1.4.0           # Fast key-value storage
+
+# Scientific Computing
+scikit-learn>=1.2.0   # Machine learning utilities
+networkx>=3.0         # Graph algorithms
+igraph>=0.10.0        # Fast graph library
+
+# Testing & Quality
+pytest>=7.2.0
+pytest-asyncio>=0.21.0
+black>=23.0.0         # Code formatting
+isort>=5.12.0         # Import sorting
+mypy>=1.0.0           # Type checking
+
+# Configuration & Logging
+pyyaml>=6.0           # YAML config files
+python-dotenv>=1.0.0  # Environment variables
+colorlog>=6.7.0       # Colored logging
+rich>=13.0.0          # Rich terminal output
+
+# Chess-Specific
+chess-com>=1.9.0      # Chess.com API (optional)
+lichess-python>=0.10.0 # Lichess API (optional)
+
+# Memory Profiling & Optimization
+memory-profiler>=0.60.0
+line-profiler>=4.0.0
+py-spy>=0.3.0         # Sampling profiler
+
+# Advanced ML Libraries
+transformers>=4.30.0  # Transformer models (optional)
+torchtext>=0.15.0     # Text processing
+torch-audio>=2.0.0    # Audio processing (optional)
+
+# Graph & Network Analysis
+graph-tool>=2.45      # Advanced graph analysis (optional, requires compilation)
+python-igraph>=0.10.0 # Python interface to igraph
+
+# Parallel Processing
+joblib>=1.2.0         # Parallel computing
+multiprocessing-logging>=0.3.4  # Logging in multiprocessing
+ray>=2.5.0            # Distributed computing (optional)
+
+# Database & Persistence
+sqlalchemy>=2.0.0     # Database ORM
+redis>=4.5.0          # In-memory database (optional)
+pymongo>=4.3.0        # MongoDB driver (optional)
+
+# API & Communication
+fastapi>=0.95.0       # Modern web API (optional upgrade from Flask)
+uvicorn>=0.20.0       # ASGI server
+websockets>=11.0.0    # WebSocket support
+
+# Chess Engine Communication
+stockfish>=3.28.0     # Python Stockfish wrapper
+engine-wrapper>=1.0.0 # Generic engine wrapper (if available)
+
+# Development Tools
+jupyter>=1.0.0        # Notebook environment
+ipywidgets>=8.0.0     # Interactive widgets
+notebook>=6.5.0       # Jupyter notebook
+
+# Optional High-Performance Libraries
+# Uncomment if available and needed:
+# cupy>=12.0.0         # GPU-accelerated NumPy (CUDA)
+# jax>=0.4.0           # JAX for high-performance ML
+# jaxlib>=0.4.0        # JAX library
+# optuna>=3.0.0        # Hyperparameter optimization

@@ -24,6 +24,13 @@ class GameInterface:
         self.game.reset(fen)
         self.game_history = []
     
+    def record_move(self, move_str: str, player: str):
+        self.game_history.append({
+            'move': move_str,
+            'player': player,
+            'fen': self.get_board_fen()
+        })
+    
     def make_move(self, move_str: str) -> bool:
         try:
             # Handle promotion moves
@@ -35,25 +42,17 @@ class GameInterface:
             if move in self.game.get_legal_moves():
                 success = self.game.make_move(move)
                 if success:
-                    self.game_history.append({
-                        'move': move_str,
-                        'player': 'human',
-                        'fen': self.game.get_fen()
-                    })
+                    self.record_move(move_str, 'human')
                 return success
-        except:
+        except Exception:
             try:
                 move = self.game.board.parse_san(move_str)
                 if move in self.game.get_legal_moves():
                     success = self.game.make_move(move)
                     if success:
-                        self.game_history.append({
-                            'move': move_str,
-                            'player': 'human',
-                            'fen': self.game.get_fen()
-                        })
+                        self.record_move(move_str, 'human')
                     return success
-            except:
+            except Exception:
                 return False
         return False
     
@@ -74,6 +73,7 @@ class GameInterface:
         return False
     
     def get_ai_move(self, temperature: float = 0.1) -> Optional[str]:
+        """Get and play the AI's move using the neural model."""
         if self.game.is_game_over():
             return None
         
@@ -81,11 +81,7 @@ class GameInterface:
         if move:
             move_str = move.uci()
             self.game.make_move(move)
-            self.game_history.append({
-                'move': move_str,
-                'player': 'ai',
-                'fen': self.game.get_fen()
-            })
+            self.record_move(move_str, 'ai')
             return move_str
         return None
     
@@ -99,6 +95,7 @@ class GameInterface:
         return self.game.is_game_over()
     
     def get_game_result(self) -> Optional[str]:
+        """Get a human-readable result if the game has ended."""
         if not self.is_game_over():
             return None
         
@@ -126,6 +123,7 @@ class GameInterface:
                     self.user_learning.learn_from_user_games()
     
     def get_game_status(self) -> dict:
+        """Return current game state for external use."""
         status = {
             'fen': self.get_board_fen(),
             'legal_moves': self.get_legal_moves(),
