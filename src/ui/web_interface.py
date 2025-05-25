@@ -381,6 +381,14 @@ def run_web_interface(model_path: str = None, host: str = '127.0.0.1', port: int
 
 if __name__ == '__main__':
     import sys
-    model_path = sys.argv[1] if len(sys.argv) > 1 else None
-    enable_learning = '--learn' in sys.argv
-    run_web_interface(model_path, enable_learning=enable_learning)
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Chess Web Interface')
+    parser.add_argument('--model', type=str, help='Path to model file')
+    parser.add_argument('--port', type=int, default=5000, help='Port to run on (default: 5000)')
+    parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind to (default: 127.0.0.1)')
+    parser.add_argument('--learn', action='store_true', help='Enable learning mode')
+    
+    args = parser.parse_args()
+    
+    run_web_interface(args.model, host=args.host, port=args.port, enable_learning=args.learn)
