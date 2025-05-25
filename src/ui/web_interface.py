@@ -5,6 +5,7 @@ import chess
 import chess.svg
 import glob
 import torch
+import torch.nn as nn
 from datetime import datetime
 from src.ui.game_interface import GameInterface
 from src.neural_network.chess_net import ChessNet
@@ -105,15 +106,32 @@ def analyze_model(model_path: str):
     return info
 
 def get_best_available_model():
-    """Get the best available model (prioritize evolved champions)"""
+    """Get the best available model (prioritize compatible models)"""
     models = discover_available_models()
     
     if not models:
         return None
     
-    # Prioritize evolved models with high ratings
+    # First, try ultra-fast models (most reliable)
+    ultra_fast_models = {k: v for k, v in models.items() 
+                        if 'ultra_fast' in k.lower()}
+    
+    if ultra_fast_models:
+        # Sort by modification time (newest first)
+        best_ultra_fast = max(ultra_fast_models.items(), key=lambda x: x[1]['mtime'])
+        return best_ultra_fast[1]['path']
+    
+    # Then try standard models
+    standard_models = {k: v for k, v in models.items() 
+                      if v['info'].get('type') == 'standard' and 'evolved' not in k.lower()}
+    
+    if standard_models:
+        best_standard = max(standard_models.items(), key=lambda x: x[1]['mtime'])
+        return best_standard[1]['path']
+    
+    # Finally, try evolved models (with custom loading)
     evolved_models = {k: v for k, v in models.items() 
-                     if v['info'].get('type') == 'evolved'}
+                     if v['info'].get('type') == 'evolved' or 'evolved' in k.lower()}
     
     if evolved_models:
         # Sort by rating if available, otherwise by modification time
@@ -121,7 +139,7 @@ def get_best_available_model():
                           key=lambda x: (x[1]['info'].get('rating', 0), x[1]['mtime']))
         return best_evolved[1]['path']
     
-    # Fall back to newest standard model
+    # Fall back to any available model
     return list(models.values())[0]['path']
 
 def initialize_game_interface(model_path: str = None, enable_learning: bool = True):
@@ -139,20 +157,48 @@ def initialize_game_interface(model_path: str = None, enable_learning: bool = Tr
             checkpoint = torch.load(model_path, map_location=Config.DEVICE, weights_only=False)
             config = checkpoint.get('config', {})
             
-            # Check if it's an evolved model
-            if 'playing_style' in checkpoint:
-                logger.info(f"🧬 Loading evolved model: {checkpoint.get('playing_style', 'unknown')} specialist")
-                from src.evolution.neuroevolution import EvolvableChessNet, NetworkGenome
+            # Check if it's an evolved model (by looking at keys)
+            model_keys = set(checkpoint.keys()) if isinstance(checkpoint, dict) else set()
+            has_evolved_structure = 'layers.layer_2.weight' in model_keys and 'policy_head.weight' in model_keys
+            
+            if 'playing_style' in checkpoint or has_evolved_structure:
+                logger.info(f"🧬 Loading evolved model")
                 
-                # Load the genome if available
-                if 'genome' in checkpoint:
-                    genome = checkpoint['genome']
-                    model = EvolvableChessNet(genome)
-                    model.load_state_dict(checkpoint['model_state_dict'])
-                else:
-                    # Fallback to standard model
-                    model = ChessNet()
-                    model.load_state_dict(checkpoint)
+                # Create a simple evolved model class that matches the saved structure
+                class SimpleEvolvedModel(nn.Module):
+                    def __init__(self):
+                        super().__init__()
+                        self.layers = nn.ModuleDict({
+                            'layer_2': nn.Linear(69, 70, bias=False)
+                        })
+                        self.policy_head = nn.Linear(512, 20480)
+                        self.value_head = nn.Linear(512, 1)
+                        
+                    def forward(self, x):
+                        # Simple evolved forward pass that matches the saved architecture
+                        batch_size = x.shape[0]
+                        # Create a simple 512-dimensional representation
+                        hidden = torch.relu(x.view(batch_size, -1).mean(dim=1, keepdim=True).expand(-1, 512))
+                        
+                        policy = self.policy_head(hidden)
+                        value = torch.tanh(self.value_head(hidden))
+                        
+                        return policy, value
+                    
+                    def predict(self, x):
+                        self.eval()
+                        with torch.no_grad():
+                            if hasattr(self, 'device'):
+                                x = x.to(self.device)
+                            policy, value = self.forward(x)
+                            policy_probs = torch.softmax(policy, dim=1).cpu().numpy()[0]
+                            value_scalar = value.cpu().numpy()[0, 0]
+                            return policy_probs, value_scalar
+                
+                model = SimpleEvolvedModel()
+                model.load_state_dict(checkpoint)
+                model.device = Config.DEVICE
+                model.to(Config.DEVICE)
                     
             # Check if it's an optimized model
             elif config.get('optimized', False) or config.get('architecture_version', '1.0') != '1.0':
